@@ -1,0 +1,222 @@
+// ---------- Prisma base ----------
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+
+model User {
+  id        Int      @id @default(autoincrement())
+  phone     String   @unique
+  name      String?
+  email     String?  @unique
+  age       Int?
+  gender    String?
+  createdAt DateTime @default(now())
+
+  roles              ModelHasRoles[]
+  healthReports      HealthReport[]
+  chatSessions       ChatSession[]
+  persistentMemories PersistentMemory[]
+}
+
+model Role {
+  id          Int                  @id @default(autoincrement())
+  name        String               @unique
+  users       ModelHasRoles[]
+  permissions RoleHasPermissions[]
+}
+
+model Permission {
+  id    Int                  @id @default(autoincrement())
+  name  String               @unique
+  roles RoleHasPermissions[]
+}
+
+model RoleHasPermissions {
+  id           Int        @id @default(autoincrement())
+  roleId       Int
+  permissionId Int
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+}
+
+model ModelHasRoles {
+  id     Int  @id @default(autoincrement())
+  userId Int
+  roleId Int
+  user   User @relation(fields: [userId], references: [id])
+  role   Role @relation(fields: [roleId], references: [id])
+}
+
+
+model Document {
+  id      Int    @id @default(autoincrement())
+  title   String  @db.VarChar(191)
+  content String  @db.VarChar(20000)
+}
+
+model Product {
+  id          Int     @id @default(autoincrement())
+  name        String  @db.VarChar(191)
+  description String? @db.VarChar(800)
+  symptoms    Json
+  cancerTypes Json
+  category    String? @db.VarChar(100)
+  stage       String? @db.VarChar(50)
+  price       Decimal @db.Decimal(10, 2)
+  available   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum MessageType {
+  USER
+  ORCHESTRATOR
+  AGENT
+  SYSTEM
+  ERROR
+}
+
+enum AgentType {
+  RAG_AGENT
+  SEARCH_AGENT
+  SUMMARY_AGENT
+  PRODUCT_AGENT
+  DOCUMENT_AGENT
+  REPORT_AGENT
+}
+
+model ChatSession {
+  id        String   @id @default(uuid()) // internal PK
+  sessionId String   @unique // public ID you use in code
+  userId    Int? // FIXED: was String?, now Int?
+  title     String?  @default("New Chat")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  isActive  Boolean  @default(true)
+
+  user          User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
+  messages      ChatMessage[]
+  healthReports HealthReport[]
+  summaries     ConversationSummary[]
+
+  @@index([userId])
+  @@index([sessionId])
+}
+
+model ChatMessage {
+  id           String      @id @default(uuid())
+  // IMPORTANT: we keep using the public sessionId and reference ChatSession.sessionId
+  sessionId    String
+  messageType  MessageType
+  agentType    AgentType?
+  content      String      @db.Text
+  metadata     Json?
+  timestamp    DateTime    @default(now())
+  parentId     String?
+  messageIndex Int? // optional, for deterministic segmenting/summaries
+
+  // link to a single report (when message is "file received" or "analysis")
+  reportId     String?
+  healthReport HealthReport? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+
+  // Relation to ChatSession via its UNIQUE sessionId
+  session ChatSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+
+  parent   ChatMessage?  @relation("MessageThread", fields: [parentId], references: [id])
+  children ChatMessage[] @relation("MessageThread")
+
+  @@index([sessionId, timestamp])
+  @@index([messageType])
+  @@index([agentType])
+}
+
+// ---------- Health Locker ----------
+enum ReportCategory {
+  INSURANCE_DOCUMENT
+  INVESTIGATIONS_REPORTS
+  PRESCRIPTIONS_PROTOCOLS
+  COST_ESTIMATE
+  DISCHARGE_SUMMARY
+  OTHERS
+}
+
+enum AnalysisStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model HealthReport {
+  id        String         @id @default(uuid())
+  userId    Int
+  sessionId String? // set if uploaded via chat (public sessionId)
+  category  ReportCategory
+
+  // File metadata
+  originalName String
+  storedName   String
+  filePath     String
+  fileSize     Int
+  mimeType     String
+  checksum     String?
+
+  uploadedAt DateTime @default(now())
+
+  // Analysis
+  analysisStatus   AnalysisStatus @default(PENDING)
+  summary          String?
+  keyFindings      Json?
+  recommendations  Json?
+  labValues        Json?
+  abnormalFindings Json?
+  tempUrlExpiry    DateTime?
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // reference ChatSession.sessionId (not the PK id)
+  chatSession ChatSession? @relation(fields: [sessionId], references: [sessionId], onDelete: SetNull)
+
+  chatMessages ChatMessage[]
+
+  @@unique([userId, filePath])
+  @@index([userId, category, uploadedAt])
+  @@index([sessionId])
+  @@map("health_reports")
+}
+
+model ConversationSummary {
+  id          String   @id @default(uuid())
+  // Use public sessionId to stay consistent with your services
+  sessionId   String
+  segmentFrom Int
+  segmentTo   Int
+  summary     String   @db.Text
+  createdAt   DateTime @default(now())
+
+  session ChatSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+
+  @@index([sessionId, segmentTo])
+}
+
+
+model PersistentMemory {
+  id        String   @id @default(uuid())
+  userId    Int
+  scope     String // "global" | "session:<id>" | "agent:<NAME>"
+  kind      String // "preference" | "profile" | "fact" | "task"
+  content   String   @db.Text
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, scope, kind])
+}
