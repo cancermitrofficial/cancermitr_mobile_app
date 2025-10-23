@@ -7,10 +7,6 @@ import {
   CheckCircle, X, Menu
 } from "lucide-react";
 
-// Configure axios base URL
-const api = axios.create({
-  baseURL: "http://localhost:5000/api"
-});
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
@@ -46,7 +42,7 @@ export default function Dashboard() {
         return;
       }
 
-      const res = await api.get("/user/profile", {
+      const res = await axios.get("/user/profile", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -65,7 +61,7 @@ export default function Dashboard() {
   const fetchStats = async () => {
     try {
       const token = Cookies.get("token");
-      const response = await api.get('/user/stats', {
+      const response = await axios.get('/user/stats', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
