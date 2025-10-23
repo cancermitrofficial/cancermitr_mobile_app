@@ -23,10 +23,14 @@ export default function Login() {
       showNotification("error", "Please enter your phone number");
       return;
     }
-    
+        const cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.length !== 10) {
+      showNotification("error", "Please enter a valid 10-digit phone number");
+      return;
+    }
     setLoading(true);
     try {
-      await axios.post("/auth/request-otp", { phone });
+      await axios.post("/auth/request-otp", {  phone: cleanPhone });
       setStep("verify");
       showNotification("success", "Verification code sent to your phone");
     } catch (err) {
@@ -45,7 +49,8 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const res = await axios.post("/auth/login", { phone, otp });
+      const cleanPhone = phone.replace(/\D/g, '');
+      const res = await axios.post("/auth/login", {  phone: cleanPhone, otp });
       showNotification("success", "Login successful! Redirecting...");
       document.cookie = `token=${res.data.token}; path=/`;
       console.log("JWT stored in cookie: ", document.cookie);
@@ -204,6 +209,15 @@ useEffect(() => {
         <div className="mt-6 text-center">
           <p className="text-xs text-gray-500">
             Your information is protected with industry-standard security
+          </p>
+           <p className="text-sm text-gray-600">
+            Not registered?{" "}
+            <button
+              onClick={() => navigate("/register")}
+              className="text-blue-600 hover:text-blue-700 font-medium hover:underline"
+            >
+              Register now
+            </button>
           </p>
         </div>
       </div>
