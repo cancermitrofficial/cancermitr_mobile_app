@@ -18,14 +18,14 @@ const ALLOWED_ORIGINS = [
   'http://77.37.45.127'
 ].filter(Boolean);
 
-app.use(cors({
-  origin(origin, cb) {
-    if (!origin) return cb(null, true);
-    if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-    return cb(new Error(`CORS blocked for origin: ${origin}`));
-  },
-  credentials: true
-}));
+// app.use(cors({
+//   origin(origin, cb) {
+//     if (!origin) return cb(null, true);
+//     if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+//     return cb(new Error(`CORS blocked for origin: ${origin}`));
+//   },
+//   credentials: true
+// }));
 
 // Preflight
 // app.options('*', cors({
@@ -46,7 +46,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));                              // handles most CORS
-app.options('(.*)', cors(corsOptions));                  // <-- Express 5: use (.*), not '*'
+app.options(/.*/, cors(corsOptions));                 // <-- Express 5: use (.*), not '*'
 // or scope to API only:
 // app.options('/api/(.*)', cors(corsOptions));
 
