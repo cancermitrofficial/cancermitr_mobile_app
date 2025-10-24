@@ -28,14 +28,28 @@ app.use(cors({
 }));
 
 // Preflight
-app.options('*', cors({
+// app.options('*', cors({
+//   origin(origin, cb) {
+//     if (!origin) return cb(null, true);
+//     if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+//     return cb(new Error(`CORS blocked for origin: ${origin}`));
+//   },
+//   credentials: true
+// }));
+const corsOptions = {
   origin(origin, cb) {
-    if (!origin) return cb(null, true);
+    if (!origin) return cb(null, true);                 // allow curl/health/no-Origin
     if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-    return cb(new Error(`CORS blocked for origin: ${origin}`));
+    return cb(null, false);                              // deny without throwing
   },
   credentials: true
-}));
+};
+
+app.use(cors(corsOptions));                              // handles most CORS
+app.options('(.*)', cors(corsOptions));                  // <-- Express 5: use (.*), not '*'
+// or scope to API only:
+// app.options('/api/(.*)', cors(corsOptions));
+
 
 app.set('trust proxy', 1);
 
